@@ -6,7 +6,7 @@ use nusb::{Device, Interface};
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Read, Write};
 use std::time::Duration;
-use std::{mem, ptr};
+use std::{mem};
 use std::borrow::Cow;
 use indicatif::{ProgressFinish, ProgressStyle};
 use log::{debug, error, trace};
@@ -56,7 +56,6 @@ impl Display for Slot {
 }
 
 #[derive(AsRef, Deref, DerefMut, Default, PartialEq)]
-#[repr(C)]
 pub struct ByteVec {
     data: Vec<u8>
 }
@@ -67,10 +66,6 @@ impl ByteVec {
     }
 
     pub fn append(&mut self, vec: &Self) {
-        self.data.extend(vec.as_ref());
-    }
-
-    pub fn extend_vec(&mut self, vec: Self) {
         self.data.extend(vec.as_ref());
     }
 
@@ -170,7 +165,6 @@ impl From<ByteVec> for CVec {
     }
 }
 
-#[repr(C)]
 #[derive(PartialEq, Eq, Debug, derive_more::Display)]
 pub enum FastbootHeader {
     Error = 0,
@@ -188,22 +182,6 @@ impl From<&[u8]> for FastbootHeader {
             b"FAIL" => FastbootHeader::Fail,
             _ => FastbootHeader::NoHeader,
         }
-    }
-}
-
-#[repr(C)]
-pub struct FastbootDeviceFFI {
-    _device: Device,
-    _interface: Interface,
-    _reader: EndpointRead<Bulk>,
-    _writer: EndpointWrite<Bulk>,
-    pub reply: CVec,
-}
-
-impl From<FastbootDevice> for FastbootDeviceFFI {
-    fn from(dev: FastbootDevice) -> Self {
-        let cvec = CVec::from(dev.reply);
-        Self { _device: dev.device, _interface: dev.interface, _reader: dev.reader, _writer: dev.writer, reply: cvec }
     }
 }
 
@@ -390,15 +368,6 @@ impl FastbootDevice {
         let size = short_reader.read_to_end(self.reply.as_mut())?;
         short_reader.consume_end()?;
         Ok(size)
-    }
-}
-
-impl From<*mut FastbootDeviceFFI> for FastbootDevice {
-    fn from(dev_ffi_ptr: *mut FastbootDeviceFFI) -> Self {
-        unsafe {
-            let dev_ffi = ptr::read(dev_ffi_ptr);
-            Self { device: dev_ffi._device, interface: dev_ffi._interface, reader: dev_ffi._reader, writer: dev_ffi._writer, reply: dev_ffi.reply.into() }
-        }
     }
 }
 
