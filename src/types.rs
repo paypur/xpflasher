@@ -4,7 +4,6 @@ use indicatif::{ProgressFinish, ProgressStyle};
 use std::borrow::Cow;
 use std::fmt::{Debug, Display, Formatter};
 
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Slot {
     A,
@@ -55,6 +54,10 @@ pub struct ByteVec {
 }
 
 impl ByteVec {
+    pub(crate) fn new() -> Self {
+        Vec::new().into()
+    }
+
     pub fn append(&mut self, vec: &Self) {
         self.data.extend(vec.as_ref());
     }
@@ -65,7 +68,7 @@ impl ByteVec {
 
     pub fn as_decimal(&self) -> Result<u32> {
         let str = str::from_utf8(&self.data)?;
-        let n = u32::from_str_radix(str, 10)?;
+        let n = u32::from_str_radix(str, 10).with_context(|| format!("String: \"{str}\""))?;
         Ok(n)
     }
 
@@ -73,6 +76,30 @@ impl ByteVec {
         let str = str::from_utf8(&self.data)?;
         let n = u32::from_str_radix(str, 16).with_context(|| format!("String: \"{str}\""))?;
         Ok(n)
+    }
+
+    pub fn to_hexadecimal_string(&self) -> String {
+        const NIBBLE_TO_HEX: fn(u8) -> char = |b: u8| -> char {
+            debug_assert!(b < 0x10);
+            (if b < 10 {
+                '0' as u8 + b
+            } else {
+                'A' as u8 + b - 10
+            }) as char
+        };
+
+        let mut string = String::new();
+
+        for b in self.data.iter() {
+            string.push(NIBBLE_TO_HEX(b >> 4));
+            string.push(NIBBLE_TO_HEX(b & 0xF));
+        }
+
+        string
+    }
+
+    pub fn into_string(self) -> Result<String> {
+        Ok(String::from_utf8(self.data)?)
     }
 }
 
