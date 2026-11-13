@@ -2,12 +2,13 @@ use crate::fastboot::FastbootDevice;
 use crate::sin::Sin;
 use crate::ta::TrimArea;
 use crate::types::{ProgressBar, Slot};
+use crate::utils::{lun_size_kb, speed_as_data_rate};
 use crate::xml::BootConfiguration;
 use anyhow::{Context, bail, ensure};
-use log::{warn};
+use log::warn;
 use nusb::Speed;
+use std::backtrace::BacktraceStatus;
 use std::io::{Read, stdin};
-use crate::utils::{lun_size_kb, speed_as_data_rate};
 
 pub mod tests;
 pub mod types;
@@ -17,7 +18,7 @@ pub mod xml;
 pub mod ta;
 mod fastboot;
 
-fn main() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<()> {
     env_logger::builder()
         .format_timestamp(None)
         // .format(|buf, record| writeln!(buf, "{}", record.args()))
@@ -96,6 +97,7 @@ fn main() -> anyhow::Result<()> {
     let partition = bar.step(|| xml::partition_delivery(Some(lun_size)))?;
     bar.okay();
 
+    println!("Ready to flash device, press ENTER to continue ...");
     pause();
 
     /* begin flashing */
@@ -129,9 +131,25 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-fn pause() {
-    println!("Ready to flash device, press ENTER to continue ...");
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("\n{}: {:#}", console::style("error").red().bold(), e);
+        if e.backtrace().status() == BacktraceStatus::Captured {
+            eprintln!("{}", e.backtrace());
+        }
+    }
 
+    #[cfg(target_os = "windows")]
+    {
+        use std::io::Write;
+
+        print!("Press Enter to exit ...");
+        let _ = std::io::stdout().flush();
+        pause();
+    }
+}
+
+fn pause() {
     loop {
         if let Ok(_) = stdin().read(&mut [0u8]) {
             break;
