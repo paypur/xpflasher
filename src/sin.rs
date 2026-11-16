@@ -1,9 +1,10 @@
 use crate::fastboot::{FastbootDevice, Header};
 use crate::types::{ByteVec, ProgressBar, Slot};
 use crate::utils::*;
-use anyhow::{anyhow, ensure, Context};
+use anyhow::{Context, anyhow, ensure};
 use flate2::read::GzDecoder;
 use log::{debug, error, info};
+use std::ffi::CStr;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Seek};
@@ -26,18 +27,20 @@ impl Sin {
         let mut cms = Vec::<u8>::new();
         let mut chunks = Vec::<Vec<u8>>::new();
 
-        for (i, entry) in open_sin_archive(path)?
-            .entries()?
-            .enumerate() {
+        for entry in open_sin_archive(path)?
+            .entries()? {
             let mut entry = entry.with_context(|| format!("Failed to read tar entry from {}", path.display()))?;
 
             if !filter_entry(&entry) {
                 continue;
             }
 
-            match i {
-                0 => {
-                    let _ = prefix.insert(Self::entry_prefix(&entry)?);
+            if prefix.is_none() {
+                prefix = Some(Self::entry_prefix(&entry)?);
+            }
+
+            match Self::entry_extension(&entry)?.as_str() {
+                "cms" => {
                     cms.reserve_exact(entry.size() as usize);
                     entry.read_to_end(cms.as_mut())?;
                 },
@@ -74,7 +77,7 @@ impl Sin {
         let mut progress = ProgressBar::new(parts, format!("{prefix} ({target_slot})"));
 
         progress.step(|| {
-            self.download_cms(usb)?;
+            self.download_cms(usb).context("Failed to flash cms")?;
 
             // include this in the step since downloading cms is so fast
             if !is_partition_image {
@@ -148,10 +151,25 @@ impl Sin {
         self.chunks.iter().map(|c| c.as_slice())
     }
 
-    /// Returns tar entry name without the extension
+    /// Returns tar entry header name
+    fn entry_name<'a>(entry: &'a Entry<Box<dyn Read>>) -> anyhow::Result<&'a str> {
+        let header = entry.header().as_ustar().ok_or_else(|| anyhow!("Failed to parse Tar Entry header as ustar"))?;
+        // name includes many null characters
+        Ok(CStr::from_bytes_until_nul(&header.name)?.to_str()?)
+    }
+
+    /// Returns tar entry header name without the extension
     fn entry_prefix(entry: &Entry<Box<dyn Read>>) -> anyhow::Result<String> {
-        let path = Path::new(tar_entry_header_name(&entry)?).with_extension("");
+        let path = Path::new(Self::entry_name(&entry)?).with_extension("");
         let str = path.to_str().context("Failed convert path back into string")?;
+        Ok(str.to_owned())
+    }
+
+    /// Returns tar entry header name with only the extension
+    fn entry_extension(entry: &Entry<Box<dyn Read>>) -> anyhow::Result<String> {
+        let path = Path::new(Self::entry_name(&entry)?);
+        let str = path.extension().ok_or_else(|| anyhow!("Failed to find tar entry header name extension"))?
+            .to_str().context("Failed convert path back into string")?;
         Ok(str.to_owned())
     }
 }

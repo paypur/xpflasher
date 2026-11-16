@@ -84,11 +84,6 @@ pub fn noerase_in_updatexml(file_name: &OsStr) -> bool {
     false
 }
 
-pub fn tar_entry_header_name<'a>(entry: &'a Entry<Box<dyn Read>>) -> anyhow::Result<&'a str> {
-    let header = entry.header().as_ustar().ok_or_else(|| anyhow!("Failed to parse Tar Entry header as ustar"))?;
-    Ok(str::from_utf8(&header.name)?)
-}
-
 pub fn speed_as_data_rate(speed: Speed) -> &'static str {
     match speed {
         Speed::Low => "1.5 Mb/s",
