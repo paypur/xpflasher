@@ -30,7 +30,7 @@ pub enum Header {
     Fail,
     Okay,
     Data,
-    NoHeader,
+    None,
 }
 
 impl From<&[u8]> for Header {
@@ -39,7 +39,7 @@ impl From<&[u8]> for Header {
             b"FAIL" => Header::Fail,
             b"OKAY" => Header::Okay,
             b"DATA" => Header::Data,
-            _ => Header::NoHeader,
+            _ => Header::None,
         }
     }
 }
@@ -216,21 +216,13 @@ impl FastbootDevice {
         let mut vec = self.read()?;
         trace_formatted_hex("READ", vec.as_slice());
 
-        if vec.len() < 4 { return Ok(Response::new(Header::NoHeader, vec)) }
+        if vec.len() < 4 { return Ok(Response::new(Header::None, vec)) }
 
-        let prefix = Header::from(&vec[0..4]);
+        let prefix = Header::from(vec.drain(0..4).as_ref());
         match prefix {
-            Header::Okay | Header::Fail if vec.len() == 4 => {
-                vec.clear();
-            },
-            Header::Okay | Header::Fail if vec.len() > 4 => {
-                // strip the prefix and copy the rest
-                vec.drain(0..4);
-            }
-            Header::Data if vec.len() == 12 || vec.len() == 13 => {
+            Header::Data if vec.len() == 8 || vec.len() == 9 => {
                 // xperia 10 mark 3 XQ-BT41 send 13 bytes where last byte is null termination
-                vec.truncate(12);
-                vec.drain(0..4);
+                vec.truncate(8);
             },
             _ => ()
         };
