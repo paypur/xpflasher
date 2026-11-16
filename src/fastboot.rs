@@ -206,7 +206,7 @@ impl FastbootDevice {
         trace_formatted_hex("WRITE", bytes);
 
         self.writer.write_all(bytes)?;
-        self.writer.flush_end()?;
+        self.writer.flush()?;
 
         Ok(bytes.len())
     }
