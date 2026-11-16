@@ -114,7 +114,7 @@ impl TrimArea {
 }
 
 pub fn parse_dir(dir: impl AsRef<Path>) -> anyhow::Result<Vec<TrimArea>> {
-    let tas = fs::read_dir(dir).unwrap()
+    let tas = fs::read_dir(dir)?
         .filter_map(is_ta_file)
         .filter(|path| if !noerase_in_updatexml(path.file_name().unwrap()) {
             true
