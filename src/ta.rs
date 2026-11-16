@@ -1,4 +1,4 @@
-use crate::fastboot::FastbootDevice;
+use crate::fastboot::{FastbootDevice, Header};
 use crate::types::ProgressBar;
 use crate::utils::{is_ta_file, noerase_in_updatexml};
 use anyhow::{Context, bail, ensure};
@@ -104,7 +104,7 @@ impl TrimArea {
 
         for unit in &self.units {
             usb.download(&unit.data)?;
-            usb.command(format!("Write-TA:{}:{}", self.partition, unit.unit))?;
+            usb.command(format!("Write-TA:{}:{}", self.partition, unit.unit))?.expect_header(Header::Okay)?;
             progress.inc();
         }
 
