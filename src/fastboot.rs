@@ -5,7 +5,7 @@ use log::{debug, info};
 use nusb::io::{EndpointRead, EndpointWrite};
 use nusb::transfer::{Bulk, In, Out};
 use nusb::{Device, Interface, MaybeFuture, Speed};
-use std::io::{ErrorKind, Read, Write};
+use std::io::{Read, Write};
 use std::time::Duration;
 
 pub struct Response {

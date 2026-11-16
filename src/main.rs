@@ -8,7 +8,6 @@ use anyhow::{Context, bail, ensure};
 use log::{debug, warn};
 use nusb::Speed;
 use std::backtrace::BacktraceStatus;
-use std::io::{Read, stdin};
 
 pub mod tests;
 pub mod types;
@@ -49,6 +48,7 @@ fn run() -> anyhow::Result<()> {
 
     // let _version = dev.getvar_string("version")?;
     // let _version_bootloader = dev.getvar_string("version-bootloader")?;
+    
     let version_baseband = dev.getvar_string("version-baseband")?;
     println!("↳ version-baseband: {}", version_baseband);
 
@@ -78,15 +78,12 @@ fn run() -> anyhow::Result<()> {
 
     let root_key_hash = dev.get_data("Get-root-key-hash")?.to_hexadecimal_string();
 
-    let _slot_count = dev.getvar_u32("slot-count")?;
-
-    ensure!(_slot_count == 2, "Slot count is not 2! Potentially unsupported device");
+    ensure!(dev.getvar_u32("slot-count")? == 2, "Slot count is not 2! Potentially unsupported device");
 
     let current_slot: Slot = dev.getvar_string("current-slot")?.try_into()?;
     let other_slot = current_slot.other();
-    let battery = dev.getvar_u32("Battery");
 
-    match battery {
+    match dev.getvar_u32("Battery") {
         Ok(b) => if b < 15 { bail!("Battery level is too low ({b} < 15). Charge your device before flashing!") },
         Err(e) => warn!("{e}"),
     }
@@ -152,11 +149,8 @@ fn main() {
 }
 
 fn pause() {
-    loop {
-        if let Ok(_) = stdin().read(&mut [0u8]) {
-            break;
-        }
-    }
+    let mut line = String::new();
+    let _ = std::io::stdin().read_line(&mut line);
 }
 
 fn check_usb_speed(dev: &FastbootDevice) {

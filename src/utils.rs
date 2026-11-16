@@ -1,12 +1,10 @@
-use anyhow::anyhow;
-use log::{debug, error, log_enabled, trace, Level, info};
+use log::{debug, error, log_enabled, trace, Level};
 use std::ffi::OsStr;
 use std::fmt::Write;
 use std::fs::{DirEntry, File};
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use nusb::Speed;
-use tar::Entry;
 
 pub fn trace_formatted_hex(message: &str, buffer: &[u8]) {
     if log_enabled!(Level::Trace) {
