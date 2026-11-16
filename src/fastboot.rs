@@ -1,6 +1,6 @@
 use crate::types::{ByteVec, Slot};
 use crate::utils::trace_formatted_hex;
-use anyhow::{Context, ensure};
+use anyhow::{ensure, Context};
 use log::{debug, info};
 use nusb::io::{EndpointRead, EndpointWrite};
 use nusb::transfer::{Bulk, In, Out};
@@ -16,6 +16,12 @@ pub struct Response {
 impl Response {
     fn new(header: Header, data: ByteVec) -> Response {
         Response { header, data }
+    }
+
+    pub fn expect(self, header: Header, expected_data: ByteVec) -> anyhow::Result<ByteVec> {
+        let data = self.expect_header(header)?;
+        ensure!(expected_data == data, "Expected {expected_data}, received {data}!");
+        Ok(data)
     }
 
     pub fn expect_header(self, expected: Header) -> anyhow::Result<ByteVec> {
@@ -168,16 +174,12 @@ impl FastbootDevice {
         self.write_and_read_reply(cmd).with_context(|| format!("Fastboot command {cmd} failed!"))
     }
 
-    pub fn command_expect(&mut self, cmd: impl AsRef<str>, header: Header, expected_data: ByteVec) -> anyhow::Result<ByteVec> {
-        let res = self.command(cmd)?;
-        let data = res.expect_header(header)?;
-        ensure!(expected_data == data, "Expected {expected_data}, received {data}!");
-        Ok(data)
+    pub fn command_expect(&mut self, cmd: impl AsRef<str>, header: Header, data: ByteVec) -> anyhow::Result<ByteVec> {
+        self.command(cmd)?.expect(header, data)
     }
 
     pub fn command_expect_header(&mut self, cmd: impl AsRef<str>, expected: Header) -> anyhow::Result<ByteVec> {
-        let res = self.command(cmd)?;
-        res.expect_header(expected)
+        self.command(cmd)?.expect_header(expected)
     }
 
     /// Attempts to write a buffer to device
@@ -186,7 +188,7 @@ impl FastbootDevice {
         let hex_len = ByteVec::from_len(len as u32);
         let cmd = format!("download:{hex_len}");
 
-        let _ = self.command_expect(cmd, Header::Data, hex_len)?;
+        self.command_expect(cmd, Header::Data, hex_len)?;
         self.write_and_expect_header(data, Header::Okay).with_context(|| format!("Failed to download {} bytes to device!", len))?;
 
         Ok(())
