@@ -7,8 +7,6 @@ It is a Rust rewrite of newflasher, with a focus on correctness, reliability, an
 Because XpFlasher is based on newflasher, it is expected to support Xperia XZ1 Premium and newer devices.
 However, not all devices have been tested yet. Check the list of for your [device](#validated-devices)
 
-___
-
 ## Installation and Setup
 
 ### Arch Linux
@@ -35,8 +33,6 @@ Other package formats may come later.
 
 ## Usage
 
-___
-
 > [!WARNING]
 > Backup your data before attempting to flash your device. In case flashing fails, your device may become corrupted (some cases are still recoverable). You don't
 want to learn the hard way
@@ -58,8 +54,6 @@ xpf [path/to/firmware/files]
 4. XpFlasher will prompt you to continue when it is prepared to flash your device.
 
 ## Validated devices
-
-___
 
 - Xperia 1 VI
 - Xperia XZ2 Compact
