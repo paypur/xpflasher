@@ -2,10 +2,10 @@ use crate::fastboot::FastbootDevice;
 use crate::sin::Sin;
 use crate::ta::TrimArea;
 use crate::types::{ProgressBar, Slot};
-use crate::utils::{lun_size_kb, speed_as_data_rate};
+use crate::utils::{emmc_sector_count, speed_as_data_rate, ufs_sector_count};
 use crate::xml::BootConfiguration;
 use anyhow::{Context, bail, ensure};
-use log::warn;
+use log::{debug, warn};
 use nusb::Speed;
 use std::backtrace::BacktraceStatus;
 use std::io::{Read, stdin};
@@ -54,25 +54,27 @@ fn run() -> anyhow::Result<()> {
 
     // let _serial_number = dev.getvar_string("serialno")?;
     // let _is_secure = dev.getvar_string("secure")? == "yes";
-    // let sector_size = dev.getvar_u32("Sector-size")?;
+    let sector_size = dev.getvar_u32("Sector-size")?; // probably 4096
     // let _loader_version = dev.getvar_string("Loader-version")?;
     // let _phone_id = dev.getvar_string("Phone-id")?;
     // let _device_id = dev.getvar_string("Device-id")?;
     // let _platform_id = dev.getvar_string("Platform-id")?;
     // let _rooting_status = dev.getvar_string("Rooting-status")?;
-    let ufs_info = dev.getvar_string("Ufs-info").inspect_err(|e| warn!("{e}")).ok();
-    // let _emmc_info = dev.getvar_string("Emmc-info");
     // let _default_security = dev.getvar_string("Default-security")? == "ON";
     // let _keystore_counter = dev.getvar_string("Keystore-counter")?;
     // let _security_state = dev.getvar_string("Security-state")?;
     // let _s1_root = dev.getvar_string("S1-root")?;
     // let _sake_root = dev.getvar_string("Sake-root")?;
 
-    ensure!(ufs_info.is_some(), "Ufs-info is not available. Should check emmc instead but currently not implemented");
+    let sector_count = dev.get_data("Get-ufs-info")
+        .and_then(|info| ufs_sector_count(&info))
+        .or_else(|_| {
+            dev.get_data("Get-emmc-info")
+                .and_then(|info| emmc_sector_count(&info))
+        })?;
 
-    let ufs_info = dev.get_data("Get-ufs-info")?;
-
-    let lun_size = lun_size_kb(ufs_info.as_ref())?;
+    let partition_size = sector_count * sector_size as u64 / 1024;
+    debug!("Partition size: {partition_size} KiB");
 
     let root_key_hash = dev.get_data("Get-root-key-hash")?.to_hexadecimal_string();
 
@@ -94,7 +96,7 @@ fn run() -> anyhow::Result<()> {
     let sins = bar.step(|| sin::parse_dir("./"))?;
     let tas = bar.step(|| ta::parse_dir("./"))?;
     let boot = bar.step(|| xml::boot_delivery(Some(&root_key_hash)))?;
-    let partition = bar.step(|| xml::partition_delivery(Some(lun_size)))?;
+    let partition = bar.step(|| xml::partition_delivery(Some(partition_size)))?;
     bar.okay();
 
     println!("Ready to flash device, press ENTER to continue ...");

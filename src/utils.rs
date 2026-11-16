@@ -89,21 +89,6 @@ pub fn tar_entry_header_name<'a>(entry: &'a Entry<Box<dyn Read>>) -> anyhow::Res
     Ok(str::from_utf8(&header.name)?)
 }
 
-/// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ufs/
-pub fn lun_size_kb(ufs_info: &[u8]) -> anyhow::Result<u64> {
-    debug!("{}", formatted_hex("UFS", ufs_info));
-
-    let device_descriptor_length = ufs_info[0];
-    let unit_descriptor = &ufs_info[(device_descriptor_length as usize)..];
-    let logical_block_size = unit_descriptor[0x0A];
-    let phy_mem_resource_count = u64::from_be_bytes(unit_descriptor[0x18..=0x1F].try_into()?);
-
-    let lun_size = phy_mem_resource_count * 2u64.pow(logical_block_size as u32) / 1024;
-    info!("LUN size: {lun_size} KiB");
-
-    Ok(lun_size)
-}
-
 pub fn speed_as_data_rate(speed: Speed) -> &'static str {
     match speed {
         Speed::Low => "1.5 Mb/s",
@@ -113,4 +98,20 @@ pub fn speed_as_data_rate(speed: Speed) -> &'static str {
         Speed::SuperPlus => "10 Gb/s",
         _ => "unknown"
     }
+}
+
+/// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ufs/ns-ufs-ufs_device_descriptor
+/// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ufs/ns-ufs-ufs_unit_descriptor
+pub fn ufs_sector_count(ufs_info: &[u8]) -> anyhow::Result<u64> {
+    debug!("{}", formatted_hex("UFS", ufs_info));
+    let device_descriptor_length = ufs_info[0];
+    let unit_descriptor = &ufs_info[(device_descriptor_length as usize)..];
+    Ok(u64::from_be_bytes(unit_descriptor[0x18..=0x1F].try_into()?))
+}
+
+
+/// https://api.riot-os.org/structsdmmc__ext__csd__t.html
+pub fn emmc_sector_count(emmc_info: &[u8]) -> anyhow::Result<u64> {
+    debug!("{}", formatted_hex("EMMC", emmc_info));
+    Ok(u32::from_be_bytes(emmc_info[0xd4..0xd8].try_into()?) as u64)
 }

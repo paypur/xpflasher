@@ -173,11 +173,11 @@ pub fn boot_delivery_in_dir(dir: impl AsRef<Path>, root_key_hash: Option<&str>) 
     Err(anyhow!("No commercial boot configuration found!"))
 }
 
-pub fn partition_delivery(lun_size: Option<u64>) -> anyhow::Result<Vec<Sin>> {
-    partition_delivery_in_dir(std::env::current_dir()?, lun_size)
+pub fn partition_delivery(partition_size: Option<u64>) -> anyhow::Result<Vec<Sin>> {
+    partition_delivery_in_dir(std::env::current_dir()?, partition_size)
 }
 
-pub fn partition_delivery_in_dir(dir: impl AsRef<Path>, lun_size: Option<u64>) -> anyhow::Result<Vec<Sin>> {
+pub fn partition_delivery_in_dir(dir: impl AsRef<Path>, partition_size: Option<u64>) -> anyhow::Result<Vec<Sin>> {
     let partition_delivery_file = File::open(dir.as_ref().join("partition/partition_delivery.xml")).context("Failed to open partition_delivery.xml")?;
     let reader = ParserConfig::default().create_reader(BufReader::new(partition_delivery_file));
 
@@ -198,7 +198,7 @@ pub fn partition_delivery_in_dir(dir: impl AsRef<Path>, lun_size: Option<u64>) -
 
                 if in_partition_images && is_file {
                     if let Some(path) = attribute_value(&attributes, PATH_ATTRIBUTE) {
-                        let skip = if let Some(lun_size) = lun_size {
+                        let skip = if let Some(lun_size) = partition_size {
                             regex.captures(&path)
                                 .and_then(|cap| cap.get(1))
                                 .map(|match_| match_.as_str().parse::<u64>())
