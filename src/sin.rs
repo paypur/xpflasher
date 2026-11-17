@@ -52,6 +52,9 @@ impl Sin {
             }
         }
 
+        ensure!(!cms.is_empty(), "No cms found in {}", path.display());
+        ensure!(!chunks.is_empty(), "No chunks found in {}", path.display());
+
         Ok(Self { prefix: prefix.ok_or_else(|| anyhow!("Failed to get prefix from {}", path.display()))?, other, cms, chunks })
     }
 
