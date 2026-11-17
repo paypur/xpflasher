@@ -38,5 +38,5 @@ jobs:
             --title "Release ${{ github.ref_name }}" \
             --generate-notes \
             --fail-on-no-commits \
-            target/x86_64-unknown-linux-gnu/release/xpf#xpflasher-linux \
-            target/x86_64-pc-windows-gnu/release/xpf.exe#xpflasher-windows.exe
+            target/x86_64-unknown-linux-gnu/release/xpflasher#xpflasher-linux \
+            target/x86_64-pc-windows-gnu/release/xpflasher.exe#xpflasher-windows.exe
