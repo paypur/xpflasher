@@ -23,6 +23,8 @@ fn run() -> anyhow::Result<()> {
         // .format(|buf, record| writeln!(buf, "{}", record.args()))
         .init();
 
+    println!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+
     let args: Vec<String> = std::env::args().collect();
 
     ensure!(args.len() >= 2, "Missing directory argument");
