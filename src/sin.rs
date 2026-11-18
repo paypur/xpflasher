@@ -77,7 +77,12 @@ impl Sin {
         };
 
         let parts = 1 + self.chunks.len() as u64;
-        let mut progress = ProgressBar::new(parts, format!("{prefix} ({target_slot})"));
+        let text = match (has_slot, self.other) {
+            (false, _) => prefix.to_owned(),
+            (true, false) => format!("{prefix} ({target_slot})"),
+            (true, true) => format!("{prefix} ({})", target_slot.other()),
+        };
+        let mut progress = ProgressBar::new(parts, text);
 
         progress.step(|| {
             self.download_cms(usb).context("Failed to flash cms")?;
