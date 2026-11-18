@@ -54,13 +54,11 @@ want to learn the hard way
 3. To flash firmware, run in a terminal
    - Linux
    ```bash
-    xpflasher [path/to/firmware/files]
-    # (or this, if installed manually)
-    xpflasher-linux [path/to/firmware/files]
+   xpflasher [path/to/firmware/files]
    ```
    - Windows (open terminal in the directory containing the .exe)
    ```ps1
-    ./xpflasher-windows.exe [path/to/firmware/files]
+   ./xpflasher.exe [path/to/firmware/files]
    ```
 4. A prompt will ask you to continue when the firmware has been parsed and is ready to flash your device.
 
