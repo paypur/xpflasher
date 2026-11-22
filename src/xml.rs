@@ -75,6 +75,8 @@ pub fn boot_delivery_in_dir(dir: impl AsRef<Path>, root_key_hash: Option<&str>) 
     let boot_delivery_file = File::open(dir.as_ref().join("boot/boot_delivery.xml")).context("Failed to open boot_delivery.xml")?;
     let reader = ParserConfig::default().create_reader(BufReader::new(boot_delivery_file));
 
+    let regex = Regex::new(r#"(PLATFORM_ID="[0-9A-F]{8}";)?PLF_ROOT_HASH="([0-9A-F]{96}|[0-9A-F]{64}|[0-9A-F]{48})"#)?;
+
     let mut element_stack = Vec::<String>::new();
     let mut config = BootConfiguration::builder();
 
@@ -110,7 +112,7 @@ pub fn boot_delivery_in_dir(dir: impl AsRef<Path>, root_key_hash: Option<&str>) 
                     if name.local_name == ATTRIBUTES_ELEMENT {
                         if let Some(val) = attribute_value(&attrs, VALUE_ATTRIBUTE) {
                             // newer devices dont have plat id
-                            if let Some(cap) = Regex::new(r#"(PLATFORM_ID="[0-9A-F]{8}";)?PLF_ROOT_HASH="([0-9A-F]{96}|[0-9A-F]{64}|[0-9A-F]{48})"#)?.captures(val.as_str()) {
+                            if let Some(cap) = regex.captures(val.as_str()) {
                                 if let Some(m) = cap.get(2) {
                                     let str = m.as_str();
                                     if let Some(rkh) = root_key_hash {
