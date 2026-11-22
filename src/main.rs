@@ -9,12 +9,12 @@ use log::{debug, warn};
 use nusb::Speed;
 use std::backtrace::BacktraceStatus;
 
-pub mod tests;
-pub mod types;
-pub mod utils;
-pub mod sin;
-pub mod xml;
-pub mod ta;
+mod tests;
+mod types;
+mod utils;
+mod sin;
+mod xml;
+mod ta;
 mod fastboot;
 
 fn run() -> anyhow::Result<()> {
