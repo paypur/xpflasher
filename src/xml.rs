@@ -1,15 +1,16 @@
-use anyhow::{anyhow, Context, ensure, bail};
-use regex::{Regex};
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use log::{info, trace};
-use xml::attribute::OwnedAttribute;
-use xml::reader::XmlEvent;
-use xml::ParserConfig;
 use crate::sin;
 use crate::sin::Sin;
 use crate::ta::TrimArea;
+use anyhow::{Context, anyhow, bail, ensure};
+use log::{info, trace};
+use regex::Regex;
+use std::collections::HashSet;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
+use xml::attribute::OwnedAttribute;
+use xml::reader::XmlEvent;
+use xml::{EventReader, ParserConfig};
 
 pub struct BootConfiguration {
     pub _space_id: String,
@@ -47,7 +48,7 @@ impl BootConfigurationBuilder {
             plf_root_hash: self.plf_root_hash.ok_or_else(|| anyhow!("Missing plf_root_hash"))?,
             hw_config_rev: self.hw_config_rev.ok_or_else(|| anyhow!("Missing hw_config_rev"))?,
             boot_config: TrimArea::parse(self.boot_config.ok_or_else(|| anyhow!("Missing boot_config"))?)?,
-            boot_images: sin::parse_paths(self.boot_images)?,
+            boot_images: sin::parse_paths(self.boot_images, &UpdateXml::empty())?,
         })
     }
 }
@@ -72,7 +73,7 @@ pub fn boot_delivery(root_key_hash: Option<&str>) -> anyhow::Result<BootConfigur
 }
 
 pub fn boot_delivery_in_dir(dir: impl AsRef<Path>, root_key_hash: Option<&str>) -> anyhow::Result<BootConfiguration> {
-    let boot_delivery_file = File::open(dir.as_ref().join("boot/boot_delivery.xml")).context("Failed to open boot_delivery.xml")?;
+    let boot_delivery_file = File::open(dir.as_ref().join("boot").join("boot_delivery.xml")).context("Failed to open boot_delivery.xml")?;
     let reader = ParserConfig::default().create_reader(BufReader::new(boot_delivery_file));
 
     let regex = Regex::new(r#"(PLATFORM_ID="[0-9A-F]{8}";)?PLF_ROOT_HASH="([0-9A-F]{96}|[0-9A-F]{64}|[0-9A-F]{48})"#)?;
@@ -180,7 +181,7 @@ pub fn partition_delivery(partition_size: Option<u64>) -> anyhow::Result<Vec<Sin
 }
 
 pub fn partition_delivery_in_dir(dir: impl AsRef<Path>, partition_size: Option<u64>) -> anyhow::Result<Vec<Sin>> {
-    let partition_delivery_file = File::open(dir.as_ref().join("partition/partition_delivery.xml")).context("Failed to open partition_delivery.xml")?;
+    let partition_delivery_file = File::open(dir.as_ref().join("partition").join("partition_delivery.xml")).context("Failed to open partition_delivery.xml")?;
     let reader = ParserConfig::default().create_reader(BufReader::new(partition_delivery_file));
 
     let regex = Regex::new(r"partition-image-LUN0_(\d{8,10})_X-FLASH-ALL-[0-9A-F]{4}")?;
@@ -227,7 +228,7 @@ pub fn partition_delivery_in_dir(dir: impl AsRef<Path>, partition_size: Option<u
         }
     }
 
-    sin::parse_paths(partition_paths)
+    sin::parse_paths(partition_paths, &UpdateXml::empty())
         .map(|sins| { info!("Found {} partition files", sins.len()); sins })
 }
 
@@ -250,9 +251,71 @@ fn attribute_value(attributes: &[OwnedAttribute], name: &str) -> Option<String> 
         .map(|attribute| attribute.value.clone())
 }
 
+#[derive(Debug)]
+pub struct UpdateXml {
+    set: HashSet<String>
+}
+
+impl UpdateXml {
+    pub fn empty() -> UpdateXml {
+        UpdateXml { set: HashSet::new() }
+    }
+
+    pub fn from_dir(dir: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let path = dir.as_ref().join("update.xml");
+        let file = File::open(&path).with_context(|| format!("Failed to open {}", path.display()))?;
+        let reader = BufReader::new(file);
+        let events = EventReader::new(reader);
+
+        let mut element_stack = Vec::<String>::new();
+        let mut set = HashSet::new();
+
+        for e in events {
+            match e? {
+                XmlEvent::StartElement { name, .. } => element_stack.push(name.local_name),
+                XmlEvent::EndElement { name } => pop_element(&mut element_stack, &name.local_name)?,
+                XmlEvent::Characters(string) => {
+                    if let Some(last) = element_stack.last() && (last == "NOERASE" || last == "FACTORY_ONLY") {
+                        set.insert(string);
+                    }
+                },
+                _ => ()
+            }
+        }
+
+        Ok(Self { set })
+    }
+
+    /// Returns true for files that should not be to keep user data
+    /// unfortunately this won't catch files that have been renamed
+    pub fn no_erase(&self, file: &str) -> bool {
+        self.set.contains(file)
+    }
+
+    pub fn len(&self) -> usize {
+        self.set.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::tests;
     use crate::xml;
+    use crate::xml::UpdateXml;
+
+    #[test]
+    fn update_xml() {
+        let update_xml = UpdateXml::from_dir("tests/data/XQ-EC72_Customized_HK_69.2.A.4.110").unwrap();
+
+        assert!(update_xml.no_erase("userdata_X-FLASH-ALL-88DF.sin"));
+        assert!(update_xml.no_erase("metadata_X-FLASH-ALL-88DF.sin"));
+        assert!(update_xml.no_erase("appslog_X-FLASH-ALL-88DF.sin"));
+        assert!(update_xml.no_erase("diag_X-FLASH-ALL-88DF.sin"));
+        assert!(update_xml.no_erase("reset-retail-demo-active-sts.ta"));
+        assert!(update_xml.no_erase("persist_X-FLASH-ALL-88DF.sin"));
+
+        assert_eq!(update_xml.len(), 6);
+    }
 
     #[test]
     fn boot() {

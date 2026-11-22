@@ -1,6 +1,7 @@
 use crate::fastboot::{FastbootDevice, Header};
 use crate::types::{ByteVec, ProgressBar, Slot};
 use crate::utils::*;
+use crate::xml::UpdateXml;
 use anyhow::{Context, anyhow, ensure};
 use flate2::read::GzDecoder;
 use log::{debug, error, info};
@@ -182,23 +183,28 @@ impl Sin {
     }
 }
 
-pub fn parse_dir(dir: impl AsRef<Path>) -> anyhow::Result<Vec<Sin>> {
-    let sins = parse_paths(fs::read_dir(dir)?.filter_map(is_sin_file))?;
+pub fn parse_dir(dir: impl AsRef<Path>, update_xml: &UpdateXml) -> anyhow::Result<Vec<Sin>> {
+    let dir = fs::read_dir(&dir).with_context(|| format!("{}", dir.as_ref().display()))?;
+    let sins = parse_paths(dir.filter_map(is_sin_file), update_xml)?;
     info!("Found {} .sin files", sins.len());
     Ok(sins)
 }
 
-pub fn parse_paths(paths: impl IntoIterator<Item = PathBuf>) -> anyhow::Result<Vec<Sin>> {
-    paths.into_iter()
-        .filter(|p| {
-            if noerase_in_updatexml(p.file_name().unwrap()) || p.file_name().unwrap().to_string_lossy().contains("persist") {
-                info!("Skipping {}", p.display());
-                return false;
-            }
-            true
-        })
-        .map(Sin::parse)
-        .collect::<anyhow::Result<Vec<Sin>>>()
+pub fn parse_paths(paths: impl IntoIterator<Item = PathBuf>, update_xml: &UpdateXml) -> anyhow::Result<Vec<Sin>> {
+    let mut sins = vec!();
+
+    for path in paths {
+        let osstr = path.file_name().context("Invalid file name")?;
+        let str = osstr.to_str().context("Invalid unicode in OsStr")?;
+
+        if update_xml.no_erase(str) {
+            info!("Skipping {}", path.display());
+        } else {
+            sins.push(Sin::parse(path)?)
+        }
+    }
+
+    Ok(sins)
 }
 
 fn open_sin_archive(sin_path: &Path) -> anyhow::Result<Archive<Box<dyn Read>>> {

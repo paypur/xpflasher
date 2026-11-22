@@ -1,8 +1,6 @@
-use log::{debug, error, log_enabled, trace, Level};
-use std::ffi::OsStr;
+use log::{debug, log_enabled, trace, Level};
 use std::fmt::Write;
-use std::fs::{DirEntry, File};
-use std::io::{BufRead, BufReader};
+use std::fs::{DirEntry};
 use std::path::PathBuf;
 use nusb::Speed;
 
@@ -51,35 +49,6 @@ pub fn is_ta_file(entry: std::io::Result<DirEntry>) -> Option<PathBuf> {
     } else {
         None
     }
-}
-
-pub fn noerase_in_updatexml(file_name: &OsStr) -> bool {
-    let search_for = file_name.to_str().unwrap();
-
-    let file = match File::open("update.xml") {
-        Ok(f) => f,
-        Err(e) => {
-            error!("{}", e);
-            return false;
-        },
-    };
-
-    let reader = BufReader::new(file);
-
-    for line in reader.lines().into_iter() {
-        match line {
-            Ok(str) => {
-                if !str.is_empty() && str.trim() == format!("<NOERASE>{search_for}</NOERASE>") {
-                    return true;
-                }
-            }
-            Err(e) => {
-                error!("{}", e);
-            }
-        }
-    }
-
-    false
 }
 
 pub fn speed_as_data_rate(speed: Speed) -> &'static str {

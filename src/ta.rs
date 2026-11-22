@@ -1,6 +1,7 @@
 use crate::fastboot::{FastbootDevice, Header};
 use crate::types::ProgressBar;
-use crate::utils::{is_ta_file, noerase_in_updatexml};
+use crate::utils::is_ta_file;
+use crate::xml::UpdateXml;
 use anyhow::{Context, bail, ensure};
 use log::{debug, info};
 use std::fs;
@@ -113,18 +114,19 @@ impl TrimArea {
     }
 }
 
-pub fn parse_dir(dir: impl AsRef<Path>) -> anyhow::Result<Vec<TrimArea>> {
-    let tas = fs::read_dir(dir)?
-        .filter_map(is_ta_file)
-        .filter(|path| if !noerase_in_updatexml(path.file_name().unwrap()) {
-            true
-        } else {
+pub fn parse_dir(dir: impl AsRef<Path>, update_xml: &UpdateXml) -> anyhow::Result<Vec<TrimArea>> {
+    let mut tas = vec!();
+
+    for path in fs::read_dir(dir)?.filter_map(is_ta_file) {
+        let osstr = path.file_name().context("Invalid file name")?;
+        let str = osstr.to_str().context("Invalid unicode in OsStr")?;
+
+        if update_xml.no_erase(str) {
             info!("Skipping {}", path.display());
-            false
-        })
-        .map(TrimArea::parse)
-        .collect::<Result<Vec<_>, _>>()
-        .context("All .ta files could not be successfully parsed!")?;
+        } else {
+            tas.push(TrimArea::parse(path)?);
+        }
+    }
 
     ensure!(!tas.is_empty(), "No .ta files found!");
     info!("Found {} .ta files", tas.len());
