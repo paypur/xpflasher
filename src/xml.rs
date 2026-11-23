@@ -299,13 +299,14 @@ impl UpdateXml {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests;
+    use anyhow::Context;
+    use crate::{tests};
     use crate::xml;
     use crate::xml::UpdateXml;
 
     #[test]
     fn update_xml() {
-        let update_xml = UpdateXml::from_dir("tests/data/XQ-EC72_Customized_HK_69.2.A.4.110").unwrap();
+        let update_xml = UpdateXml::from_dir(tests::FIRMWARE_1_VI).unwrap();
 
         assert!(update_xml.no_erase("userdata_X-FLASH-ALL-88DF.sin"));
         assert!(update_xml.no_erase("metadata_X-FLASH-ALL-88DF.sin"));
@@ -317,13 +318,49 @@ mod tests {
         assert_eq!(update_xml.len(), 6);
     }
 
+    fn boot_test(fw_path: &str) {
+        tests::init_logger();
+        xml::boot_delivery_in_dir(fw_path, None).with_context(|| format!("Parsing failed in {fw_path}")).unwrap();
+    }
+
+    fn partition_test(fw_path: &str) {
+        tests::init_logger();
+        xml::partition_delivery_in_dir(fw_path, None).with_context(|| format!("Parsing failed in {fw_path}")).unwrap();
+    }
+
+    #[macro_export]
+    macro_rules! add_xml_test {
+        ( $name:ident, $path:path ) => {
+            #[test]
+            fn $name() {
+               boot_test($path);
+               partition_test($path);
+            }
+        };
+    }
+
+    add_xml_test!(_1viii, tests::FIRMWARE_1_VIII);
+    add_xml_test!(_10viii, tests::FIRMWARE_10_VIII);
+    add_xml_test!(_1vii, tests::FIRMWARE_1_VII);
+    add_xml_test!(_10vii, tests::FIRMWARE_10_VII);
+    add_xml_test!(_1vi, tests::FIRMWARE_1_VI);
+    add_xml_test!(_10vi, tests::FIRMWARE_10_VI);
+    add_xml_test!(_1v, tests::FIRMWARE_1_V);
+    add_xml_test!(_5v, tests::FIRMWARE_5_V);
+    add_xml_test!(_10v, tests::FIRMWARE_10_V);
+    add_xml_test!(_1, tests::FIRMWARE_1);
+    add_xml_test!(_5, tests::FIRMWARE_5);
+    add_xml_test!(_8_lite, tests::FIRMWARE_8_LITE);
+    add_xml_test!(_10, tests::FIRMWARE_10);
+    add_xml_test!(ace, tests::FIRMWARE_ACE);
+    add_xml_test!(xz2_compact, tests::FIRMWARE_XZ2_COMPACT);
+
     #[test]
-    fn boot() {
-        xml::boot_delivery_in_dir("tests/data/H8314_Customized_US_52.1.A.3.137-R7C", None).unwrap();
-        xml::boot_delivery_in_dir("tests/data/XQ-CQ72_Customized_HK_64.2.A.2.272", None).unwrap();
-        let _1vi = xml::boot_delivery_in_dir("tests/data/XQ-EC72_Customized_HK_69.2.A.4.110", None).unwrap();
-        xml::boot_delivery_in_dir("tests/data/XQ-GE44_Customized_JP_73.0.A.2.62", None).unwrap();
-        xml::boot_delivery_in_dir("tests/data/XQ-GH44_Customized_JP_74.1.A.2.42", None).unwrap();
+    fn boot_contents() {
+        let _1vi = xml::boot_delivery_in_dir(
+            tests::FIRMWARE_1_VI,
+            Some("2B9EB2535D4A1179B294D4D083F68D9D3DDC95164111B84157D8BE0169E35DE5C6F79EA6E1034FE3D7A684F3C5166250")
+        ).unwrap();
 
         assert_eq!(_1vi._space_id, "8650-0001");
         assert_eq!(_1vi._name, "COMMERCIAL_002270E1");
@@ -332,13 +369,19 @@ mod tests {
         assert_eq!(_1vi.boot_config.name, "PDX245_XBootConfig_MiscTA");
         assert_eq!(_1vi.boot_images.iter().map(|sin| sin.prefix.as_str()).collect::<Vec<&str>>(), vec!["bootloader"]);
     }
-
-    #[test]
-    fn partition() {
-        xml::partition_delivery_in_dir("tests/data/H8314_Customized_US_52.1.A.3.137-R7C", None).unwrap();
-        xml::partition_delivery_in_dir("tests/data/XQ-CQ72_Customized_HK_64.2.A.2.272", None).unwrap();
-        xml::partition_delivery_in_dir("tests/data/XQ-EC72_Customized_HK_69.2.A.4.110", Some(249896960)).unwrap();
-        xml::partition_delivery_in_dir("tests/data/XQ-GE44_Customized_JP_73.0.A.2.62", None).unwrap();
-        xml::partition_delivery_in_dir("tests/data/XQ-GH44_Customized_JP_74.1.A.2.42", None).unwrap();
-    }
+    
+    // #[test]
+    // fn all_partition() {
+    //     tests::init_logger();
+    //         // xml::partition_delivery_in_dir(path, None).expect(format!("Parsing failed in {path}").as_str());
+    // }
+    //
+    // #[test]
+    // fn partition() {
+    //     xml::partition_delivery_in_dir("tests/data/H8314_Customized_US_52.1.A.3.137-R7C", None).unwrap();
+    //     xml::partition_delivery_in_dir("tests/data/XQ-CQ72_Customized_HK_64.2.A.2.272", None).unwrap();
+    //     xml::partition_delivery_in_dir("tests/data/XQ-EC72_Customized_HK_69.2.A.4.110", Some(249896960)).unwrap();
+    //     xml::partition_delivery_in_dir("tests/data/XQ-GE44_Customized_JP_73.0.A.2.62", None).unwrap();
+    //     xml::partition_delivery_in_dir("tests/data/XQ-GH44_Customized_JP_74.1.A.2.42", None).unwrap();
+    // }
 }

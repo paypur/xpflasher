@@ -1,15 +1,31 @@
+pub const FIRMWARE_1_VIII: &str = "tests/data/XQ-GE44_Customized_JP_73.0.A.2.62";
+pub const FIRMWARE_10_VIII: &str = "tests/data/XQ-GH44_Customized_JP_74.1.A.2.42";
+pub const FIRMWARE_1_VII: &str = "tests/data/XQ-FS54_Customized_EU_UK_71.2.A.2.70";
+pub const FIRMWARE_10_VII: &str = "tests/data/XQ-FE54_Customized_EU_UK_72.2.A.2.58";
+pub const FIRMWARE_1_VI: &str = "tests/data/XQ-EC72_Customized_HK_69.2.A.4.110";
+pub const FIRMWARE_10_VI: &str = "tests/data/XQ-ES72_Customized_TW_70.2.A.4.203";
+pub const FIRMWARE_1_V: &str = "tests/data/XQ-DQ62_Customized_US_67.2.A.3.178";
+pub const FIRMWARE_5_V: &str = "tests/data/XQ-DQ62_Customized_US_67.2.A.3.178";
+pub const FIRMWARE_10_V: &str = "tests/data/XQ-CQ72_Customized_HK_64.2.A.2.272";
+pub const FIRMWARE_1: &str = "tests/data/J9150_Customized_JP_55.2.A.4.332-R5C";
+pub const FIRMWARE_5: &str = "tests/data/J9260_Customized_JP_55.2.A.4.332-R4C";
+pub const FIRMWARE_8_LITE: &str = "tests/data/J3273_MVNO_JP_56.1.A.0.540-R7C";
+pub const FIRMWARE_10: &str = "tests/data/I4193_Customized_TW_53.1.A.3.105-R4C";
+pub const FIRMWARE_ACE: &str = "tests/data/J3173_Rakuten_JP_53.0.C.1.479-R23A";
+pub const FIRMWARE_XZ2_COMPACT: &str = "tests/data/H8314_Customized_US_52.1.A.3.137-R7C";
+
+pub fn init_logger() {
+    let _ = env_logger::builder()
+        .is_test(true)
+        .try_init();
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use std::{env, fs};
 
-    use crate::ta::{BootConfigUnit, TrimArea};
-    use crate::types::ByteVec;
-    use std::fs::File;
-    use std::io::Read;
-    use std::path::{Path, PathBuf};
     use std::sync::{Mutex, OnceLock};
-    use tar::Archive;
+    use crate::fastboot::FastbootDevice;
     use crate::sin::Sin;
     use crate::utils::is_sin_file;
 
@@ -19,18 +35,6 @@ mod tests {
         DEVICE.get_or_init(|| Mutex::new(FastbootDevice::open().expect("Failed to open fastboot device")))
     }
 
-    fn test_in_dir(dir: impl AsRef<Path>, f: impl Fn()) {
-        let dir = dir.as_ref();
-        let cwd = std::env::current_dir().unwrap();
-
-        std::env::set_current_dir(dir).unwrap();
-
-        f();
-
-        std::env::set_current_dir(cwd).unwrap();
-    }
-
-    #[test]
     fn recover_com() {
         env::set_current_dir("/media/secondary/xperia/H8314_Customized_US_52.1.A.3.137-R7C").unwrap();
         // env::set_current_dir("/media/secondary/xperia/XQ-EC72_Customized_HK_69.2.A.4.110").unwrap();
@@ -104,7 +108,7 @@ mod tests {
         assert_eq!(reply_str(&mut usb, "getvar:Battery"), "Battery not supported");
     }*/
 
-    #[test]
+
     fn test_fastboot_vars_xz2c() {
         let mut usb = get_device().lock().unwrap();
 
@@ -155,43 +159,5 @@ mod tests {
         let path = PathBuf::from("../../H8314_O2_Pay_monthly_UK_52.1.A.3.49-R6C/oem_X-FLASH-CUST-B6B5.sin");
         process_sins_rs(&mut usb, path, "flash", Slot::A);
     }*/
-
-    #[test]
-    fn test_sin_signature() {
-        // let mut usb = get_device().lock().unwrap();
-
-        std::env::set_current_dir("../../H8314_O2_Pay_monthly_UK_52.1.A.3.49-R6C/").unwrap();
-
-        let paths = fs::read_dir(".").unwrap()
-                                     .filter(|entry| {
-                if let Ok(e) = entry {
-                    e.file_name().to_string_lossy().ends_with(".sin")
-                } else {
-                    false
-                }
-            })
-                                     .map(|entry| entry.unwrap().path());
-
-        let path = PathBuf::from("partition/partition-image-LUN0_X-FLASH-ALL-B6B5.sin");
-
-        // for path in paths {
-            let file = File::open(path).unwrap();
-            let mut archive = Archive::new(Box::new(file) as Box<dyn Read>);
-
-            for e in archive.entries().unwrap() {
-                if let Ok(mut entry) = e {
-                    let mut buf = vec![];
-                    entry.read_to_end(&mut buf).unwrap();
-
-                    let x = entry.header().as_ustar().unwrap().name;
-                    let str = str::from_utf8(&x).unwrap().split('\0').next().unwrap();
-
-                    println!("{} {},\n {}", str, buf.len(), buf.iter().map(|b| format!("{:02X} ", b)).collect::<String>());
-                }
-            }
-        // }
-
-        // transfer_cms(&mut usb, &mut fst, "partitionimage_0").unwrap();
-    }
 
 }

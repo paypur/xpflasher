@@ -169,8 +169,47 @@ fn is_blacklisted(unit: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use super::*;
+    use crate::{tests};
+    use std::path::PathBuf;
+
+    fn ta_test(fw_path: &str) {
+        tests::init_logger();
+
+        let update_xml = UpdateXml::from_dir(fw_path)
+            .with_context(|| fw_path.to_owned())
+            .unwrap();
+
+        parse_dir(fw_path, &update_xml)
+            .with_context(|| fw_path.to_owned())
+            .unwrap();
+    }
+
+    #[macro_export]
+    macro_rules! add_ta_test {
+        ( $name:ident, $path:path ) => {
+            #[test]
+            fn $name() {
+               ta_test($path);
+            }
+        };
+    }
+
+    add_ta_test!(_1viii, tests::FIRMWARE_1_VIII);
+    add_ta_test!(_10viii, tests::FIRMWARE_10_VIII);
+    add_ta_test!(_1vii, tests::FIRMWARE_1_VII);
+    add_ta_test!(_10vii, tests::FIRMWARE_10_VII);
+    add_ta_test!(_1vi, tests::FIRMWARE_1_VI);
+    add_ta_test!(_10vi, tests::FIRMWARE_10_VI);
+    add_ta_test!(_1v, tests::FIRMWARE_1_V);
+    add_ta_test!(_5v, tests::FIRMWARE_5_V);
+    add_ta_test!(_10v, tests::FIRMWARE_10_V);
+    add_ta_test!(_1, tests::FIRMWARE_1);
+    add_ta_test!(_5, tests::FIRMWARE_5);
+    add_ta_test!(_8_lite, tests::FIRMWARE_8_LITE);
+    add_ta_test!(_10, tests::FIRMWARE_10);
+    add_ta_test!(ace, tests::FIRMWARE_ACE);
+    add_ta_test!(xz2_compact, tests::FIRMWARE_XZ2_COMPACT);
 
     #[test]
     fn ta_contents() {
