@@ -304,6 +304,7 @@ mod tests {
     use crate::xml::UpdateXml;
     use crate::tests;
     use anyhow::Context;
+    use paste::paste;
 
     #[test]
     fn update_xml() {
@@ -336,10 +337,16 @@ mod tests {
     #[macro_export]
     macro_rules! add_xml_test {
         ( $name:ident, $path:path ) => {
-            #[test]
-            fn $name() {
-               boot_test($path);
-               partition_test($path);
+            paste! {
+                #[test]
+                fn [<boot $name>]() {
+                   boot_test($path);
+                }
+
+                #[test]
+                fn [<part $name>]() {
+                   partition_test($path);
+                }
             }
         };
     }
@@ -357,8 +364,8 @@ mod tests {
     add_xml_test!(_5, tests::FIRMWARE_5);
     add_xml_test!(_8_lite, tests::FIRMWARE_8_LITE);
     add_xml_test!(_10, tests::FIRMWARE_10);
-    add_xml_test!(ace, tests::FIRMWARE_ACE);
-    add_xml_test!(xz2_compact, tests::FIRMWARE_XZ2_COMPACT);
+    add_xml_test!(_ace, tests::FIRMWARE_ACE);
+    add_xml_test!(_xz2_compact, tests::FIRMWARE_XZ2_COMPACT);
 
     #[test]
     fn boot_contents() {
