@@ -77,3 +77,9 @@ pub fn emmc_sector_count(emmc_info: &[u8]) -> anyhow::Result<u64> {
     debug!("{}", formatted_hex("EMMC", emmc_info));
     Ok(u32::from_be_bytes(emmc_info[0xd4..0xd8].try_into()?) as u64)
 }
+
+pub fn is_not_found(error: &anyhow::Error) -> bool {
+    error.chain()
+         .filter_map(|cause| cause.downcast_ref::<std::io::Error>())
+         .any(|io_error| io_error.kind() == std::io::ErrorKind::NotFound)
+}

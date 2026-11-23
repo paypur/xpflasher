@@ -299,10 +299,11 @@ impl UpdateXml {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Context;
-    use crate::{tests};
+    use crate::utils::is_not_found;
     use crate::xml;
     use crate::xml::UpdateXml;
+    use crate::tests;
+    use anyhow::Context;
 
     #[test]
     fn update_xml() {
@@ -325,7 +326,11 @@ mod tests {
 
     fn partition_test(fw_path: &str) {
         tests::init_logger();
-        xml::partition_delivery_in_dir(fw_path, None).with_context(|| format!("Parsing failed in {fw_path}")).unwrap();
+        // partition.xml doesn't always exist, but is still valid
+        if let Err(e) = xml::partition_delivery_in_dir(fw_path, None) && !is_not_found(&e) {
+            let r: anyhow::Result<()> = Err(e);
+            r.with_context(|| format!("Parsing failed in {fw_path}")).unwrap();
+        };
     }
 
     #[macro_export]

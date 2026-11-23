@@ -2,7 +2,7 @@ use crate::fastboot::FastbootDevice;
 use crate::sin::Sin;
 use crate::ta::TrimArea;
 use crate::types::{ProgressBar, Slot};
-use crate::utils::{emmc_sector_count, speed_as_data_rate, ufs_sector_count};
+use crate::utils::{emmc_sector_count, is_not_found, speed_as_data_rate, ufs_sector_count};
 use crate::xml::{BootConfiguration, UpdateXml};
 use anyhow::{Context, bail, ensure};
 use log::{debug, warn};
@@ -26,10 +26,10 @@ fn run() -> anyhow::Result<()> {
     println!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 
     let args: Vec<String> = std::env::args().collect();
-
     ensure!(args.len() >= 2, "Missing directory argument");
 
-    std::env::set_current_dir(args[1].as_str())?;
+    let cwd = args[1].as_str();
+    std::env::set_current_dir(&cwd).context(cwd.to_owned())?;
 
     let mut dev = FastbootDevice::open()?;
     check_usb_speed(&dev);
@@ -94,10 +94,21 @@ fn run() -> anyhow::Result<()> {
     let mut bar = ProgressBar::new(4, "Parsing firmware files");
 
     let update_xml = UpdateXml::from_dir("./")?;
-    let sins = bar.step(|| sin::parse_dir("./", &update_xml))?;
+    let mut sins = bar.step(|| sin::parse_dir("./", &update_xml))?;
     let tas = bar.step(|| ta::parse_dir("./", &update_xml))?;
-    let boot = bar.step(|| xml::boot_delivery(Some(&root_key_hash)))?;
-    let partition = bar.step(|| xml::partition_delivery(Some(partition_size)))?;
+    let boot = bar.step(|| xml::boot_delivery(/*Some(&root_key_hash)*/None))?;
+    let partition = match bar.step(|| xml::partition_delivery(/*Some(partition_size)*/None)) {
+        Ok(p) => p,
+        Err(e) => {
+            if !is_not_found(&e) {
+                bail!(e);
+            }
+            // partition has to be in the sins vec then
+            let part: Vec<Sin> = sins.extract_if(.., |s| s.prefix.starts_with("partitionimage_")).collect();
+            ensure!(!part.is_empty(), "Failed to find partition/partition.xml and failed to find partition images in firmware directory! Specified directory {cwd} is likely missing files!");
+            part
+        }
+    };
     bar.okay();
 
     println!("Ready to flash device, press ENTER to continue ...");
