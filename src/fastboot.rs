@@ -1,10 +1,10 @@
 use crate::types::{ByteVec, Slot};
 use crate::utils::trace_formatted_hex;
-use anyhow::{ensure, Context};
+use anyhow::{Context, bail, ensure};
 use log::{debug, info};
 use nusb::io::{EndpointRead, EndpointWrite};
 use nusb::transfer::{Bulk, In, Out};
-use nusb::{Device, Interface, MaybeFuture, Speed};
+use nusb::{Device, DeviceInfo, Interface, MaybeFuture, Speed};
 use std::io::{Read, Write};
 use std::time::Duration;
 
@@ -50,14 +50,16 @@ impl From<&[u8]> for Header {
     }
 }
 
-
 const VID: u16 = 0x0FCE;
 const PID: u16 = 0xB00B;
+const FASTBOOT_VID: u16 = 0x18d1;
+const FASTBOOT_PID: u16 = 0x0DDE;
 
 const IN: u8 = 0x81;
 const OUT: u8 = 0x01;
 
 const TEN_SEC: Duration = Duration::from_secs(10);
+
 
 pub struct FastbootDevice {
     device: Device,
@@ -68,12 +70,21 @@ pub struct FastbootDevice {
 }
 
 impl FastbootDevice {
+    fn find_device() -> anyhow::Result<DeviceInfo> {
+        for info in nusb::list_devices().wait()? {
+            match (info.vendor_id(), info.product_id()) {
+                (VID, PID) => return Ok(info),
+                (VID, FASTBOOT_PID) | (FASTBOOT_VID, _) | (_, FASTBOOT_PID) =>
+                    bail!("Device should be connected via flash mode (green *), not fastboot! VID:0x{:04X} PID:0x{:04X}", info.vendor_id(), info.product_id()),
+                (_, _) => ()
+            }
+        }
+        bail!("Failed to find device! Check your USB connection and try again");
+    }
+
     pub fn open() -> anyhow::Result<Self> {
-        let info = nusb::list_devices()
-            .wait()?
-            .find(|d| d.vendor_id() == VID && d.product_id() == PID)
-            .context("Failed to find device! Device should be connected via flash mode (green *), not fastboot!")?;
-        
+        let info = Self::find_device()?;
+
         let device: Device = info.open().wait().with_context(|| format!("Failed to open device (VID: {VID}, PID: {PID})"))?;
         let _interface: Interface = device.claim_interface(0).wait().context("On Windows you may need to install WinUSB as the driver for this device")?;
 
@@ -104,12 +115,12 @@ impl FastbootDevice {
         Ok(())
     }
 
-    pub fn reboot_system(&mut self) -> anyhow::Result<()>  {
+    pub fn reboot_system(&mut self) -> anyhow::Result<()> {
         self.command_expect_header("continue", Header::Okay).context("Failed to reboot to system!")?;
         Ok(println!("Rebooting to system"))
     }
 
-    pub fn enter_flash_mode(&mut self) -> anyhow::Result<()>  {
+    pub fn enter_flash_mode(&mut self) -> anyhow::Result<()> {
         self.download(&[1u8])?;
         self.command_expect_header("Write-TA:2:10100", Header::Okay).context("Failed to enter flash mode")?;
         Ok(info!("Entered flash mode"))
