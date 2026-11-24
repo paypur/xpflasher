@@ -93,11 +93,11 @@ fn run() -> anyhow::Result<()> {
     /* parse relevant files first */
     let mut bar = ProgressBar::new(4, "Parsing firmware files");
 
-    let update_xml = UpdateXml::from_dir("./")?;
-    let mut sins = bar.step(|| sin::parse_dir("./", &update_xml))?;
-    let tas = bar.step(|| ta::parse_dir("./", &update_xml))?;
-    let boot = bar.step(|| xml::boot_delivery(/*Some(&root_key_hash)*/None))?;
-    let partition = match bar.step(|| xml::partition_delivery(/*Some(partition_size)*/None)) {
+    let update_xml = UpdateXml::from_dir(".")?;
+    let mut sins = bar.step(|| sin::parse_dir(".", &update_xml))?;
+    let tas = bar.step(|| ta::parse_dir(".", &update_xml))?;
+    let boot = bar.step(|| xml::boot_delivery(Some(&root_key_hash)))?;
+    let partition = match bar.step(|| xml::partition_delivery(Some(partition_size))) {
         Ok(p) => p,
         Err(e) => {
             if !is_not_found(&e) {
