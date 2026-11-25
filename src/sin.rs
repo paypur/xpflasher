@@ -3,8 +3,12 @@ use crate::types::{ByteVec, ProgressBar, Slot};
 use crate::utils::*;
 use crate::xml::UpdateXml;
 use anyhow::{Context, anyhow, ensure};
+use cms::cert::x509::der::{Decode, Tag, Tagged};
+use cms::content_info::ContentInfo;
+use cms::signed_data::SignedData;
 use flate2::read::GzDecoder;
 use log::{debug, error, info};
+use sha2::{Digest, Sha256};
 use std::ffi::CStr;
 use std::fs;
 use std::fs::File;
@@ -53,10 +57,33 @@ impl Sin {
             }
         }
 
+        let prefix = prefix.ok_or_else(|| anyhow!("Failed to get prefix from {}", path.display()))?;
         ensure!(!cms.is_empty(), "No cms found in {}", path.display());
         ensure!(!chunks.is_empty(), "No chunks found in {}", path.display());
 
-        Ok(Self { prefix: prefix.ok_or_else(|| anyhow!("Failed to get prefix from {}", path.display()))?, other, cms, chunks })
+        Ok(Self { prefix, other, cms, chunks })
+    }
+
+    /// Only validates the sha256 hash of each sparse chunk, but does not validate the chain of trust
+    pub fn validate(self) -> anyhow::Result<Self> {
+        let content_info = ContentInfo::from_der(self.cms.as_slice())?;
+        let signed_data = content_info.content.decode_as::<SignedData>()?;
+        let any = signed_data.encap_content_info.econtent.context("Missing encapsulated content (sha256 hashes) from cms!")?;
+
+        ensure!(any.tag() == Tag::OctetString);
+
+        let hashes: Vec<[u8; 32]> = any.value()
+                                       .chunks(32)
+                                       .map(|slice| slice.try_into())
+                                       .collect::<Result<Vec<[u8; 32]>, _>>()?;
+
+        ensure!(hashes.len() == self.chunks.len());
+
+        for (hash, chunk) in hashes.iter().zip(self.chunks.iter()) {
+            ensure!(*hash == Sha256::digest(chunk));
+        }
+
+        Ok(self)
     }
 
     pub fn flash(&self, usb: &mut FastbootDevice, target_slot: Slot) -> anyhow::Result<()> {
@@ -102,6 +129,7 @@ impl Sin {
             Ok::<(), anyhow::Error>(())
         })?;
 
+        // TODO: switch to using async writer
         for (i, chunk) in self.chunks.iter().enumerate() {
             progress.suspend(|| info!("Downloading sparse chunk {prefix}.{i}"));
 
@@ -160,6 +188,10 @@ impl Sin {
         self.chunks.iter().map(|c| c.as_slice())
     }
 
+    pub fn size(&self) -> usize {
+        self.cms.len() + self.chunks.iter().map(|c| c.len()).sum::<usize>()
+    }
+
     /// Returns tar entry header name
     fn entry_name<'a>(entry: &'a Entry<Box<dyn Read>>) -> anyhow::Result<&'a str> {
         let header = entry.header().as_ustar().ok_or_else(|| anyhow!("Failed to parse Tar Entry header as ustar"))?;
@@ -200,7 +232,7 @@ pub fn parse_paths(paths: impl IntoIterator<Item = PathBuf>, update_xml: &Update
         if update_xml.no_erase(str) {
             info!("Skipping {}", path.display());
         } else {
-            sins.push(Sin::parse(path)?)
+            sins.push(Sin::parse(path)?.validate()?)
         }
     }
 
@@ -238,10 +270,11 @@ fn filter_entry(entry: &Entry<Box<dyn Read>>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Context;
     use crate::sin;
+    use crate::sin::Sin;
     use crate::tests;
     use crate::xml::UpdateXml;
+    use anyhow::Context;
 
     fn sin_test(fw_path: &str) {
         tests::init_logger();
@@ -250,9 +283,11 @@ mod tests {
             .with_context(|| fw_path.to_owned())
             .unwrap();
 
-        sin::parse_dir(fw_path, &update_xml)
+        let sin = sin::parse_dir(fw_path, &update_xml)
             .with_context(|| fw_path.to_owned())
             .unwrap();
+
+        let _ = sin.into_iter().map(Sin::validate);
     }
 
     #[macro_export]
